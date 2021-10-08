@@ -1,0 +1,10 @@
+# Ensure namespace value and text appended to name are same and this namespace exists in k8s
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raptor-configmap-production
+  namespace: production
+data:
+  spring_app_json: '{"eureka":{"client":{"service-url":{"defaultZone":"http://eureka-0.eureka.production.svc.cluster.local:8761/eureka"}}}}'
+  datasource_host: 10.100.153.52
+  eureka_service_address: http://eureka-0.eureka:8761/eureka
