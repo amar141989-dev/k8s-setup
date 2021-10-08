@@ -6,5 +6,5 @@ metadata:
   namespace: qa
 data:
   spring_app_json: '{"eureka":{"client":{"service-url":{"defaultZone":"http://eureka-0.eureka.qa.svc.cluster.local:8761/eureka"}}}}'
-  datasource_host: 10.100.153.52
+  datasource_host: 92.205.18.180
   eureka_service_address: http://eureka-0.eureka:8761/eureka
