@@ -1,0 +1,24 @@
+# Actual script location: /home/tffdbserver/database/master
+# Actual data location: /home/tffdbserver/database/master/data 
+# Actual conf location: /home/tffdbserver/database/conf
+version: '3.8'
+services:
+  db: 
+    restart: always
+    image: postgres:13-alpine
+    container_name: postgres-db-master
+    volumes:
+      - ./data:/var/lib/postgresql/data/:rw
+      - ../conf/raptor-postgres.conf:/etc/postgresql/postgresql.conf
+      - ../conf/raptor-pg_hba.conf:/etc/postgresql/pg_hba.conf
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: raptor
+      POSTGRES_PASSWORD: Raptor@!23
+      PGDATA: /var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raptor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

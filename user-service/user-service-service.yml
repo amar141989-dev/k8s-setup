@@ -1,0 +1,10 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name:  user-service-svc
+spec:
+  selector:
+    app:  user-service-app
+  ports:
+  - port:  80
+    targetPort:  9093
