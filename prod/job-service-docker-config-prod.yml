@@ -1,11 +1,11 @@
 # Prod and qa both are having same content 
 # as images are fetched from same repository 
-# Ensure namespace value and text appended to name are same and this namespace exists in k8s
+# Ensure namespace value and text appended to name are same and this namespace must exists in k8s
 apiVersion: v1
-	kind: Secret
-	metadata:
-	  name: job-service-docker-config-production
-	  namespace: production
-	data:
-	  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxcWIySXRjM1pqTFhCMWJHeGxjam94TWpsVmIxQnllWEpLZVZOTWFucHZibnBxU2c9PSIKCQl9Cgl9Cn0=
-	type: kubernetes.io/dockerconfigjson
+kind: Secret
+metadata:
+  name: job-service-docker-config-production
+  namespace: production
+data:
+  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxcWIySXRjM1pqTFhCMWJHeGxjam94TWpsVmIxQnllWEpLZVZOTWFucHZibnBxU2c9PSIKCQl9Cgl9Cn0=
+type: kubernetes.io/dockerconfigjson
