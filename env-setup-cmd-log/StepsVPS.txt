@@ -1,0 +1,396 @@
+##-------------------------------- Set up the single node Kubernetes cluster - start --------------------------------------------------------------------
+	# Reference link: https://medium.com/@srpillai/single-node-kubernetes-on-centos-c8c3507e3e65
+
+	sudo kubeadm reset
+	sudo kubeadm init --pod-network-cidr=192.168.0.0/16
+	sudo export KUBECONFIG=/etc/	kubernetes/admin.conf
+	sudo -s
+	mkdir -p $HOME/.kube
+	sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+	sudo chown $(id -u):$(id -g) $HOME/.kube/config
+	curl https://docs.projectcalico.org/manifests/calico.yaml -O
+	ls -l
+	kubectl apply -f calico.yaml
+	curl https://docs.projectcalico.org/manifests/calico.yaml -O
+	ls -l
+	kubectl get alll
+	kubectl get all
+	kubectl get all --all-namespaces
+	kubectl get all --kube-system
+	kubectl get all --namespaces=kube-system
+	kubectl get all --namespace=kube-system
+	kubectl get all --all-namespaces
+	kubectl get nodes
+	kubectl taint nodes --all node-role.kubernetes.io/master-
+	kubectl get nodes
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.3.1/aio/deploy/recommended.yaml
+	kubectl edit svc kubernetes-dashboard -n kubernetes-dashboard
+	kubectl get svc -n kubernetes-dashboard|grep NodePort|awk '{print $5}'|cut -f 2 -d :|cut -f 1 -d /
+	kubectl create serviceaccount cluster-admin-dashboard-sa
+	kubectl create clusterrolebinding cluster-admin-dashboard-sa   --clusterrole=cluster-admin   --serviceaccount=default:cluster-admin-dashboard-sa
+	kubectl describe secret $(kubectl get secret | awk '/^cluster-admin-dashboard-sa-/{print $1}') | awk '$1=="token:"{print $2}'
+
+	# Important details 
+	Login Token: eyJhbGciOiJSUzI1NiIsImtpZCI6ImZZN1doMnlIVld6QWN2bXFyRmlfeDJ3ckxJQXdkdmstRFBKNDQ5dzlOTTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImNsdXN0ZXItYWRtaW4tZGFzaGJvYXJkLXNhLXRva2VuLTRkbXRoIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImNsdXN0ZXItYWRtaW4tZGFzaGJvYXJkLXNhIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQudWlkIjoiYWViNjYxMmYtMjgxZC00OTI1LTg2Y2YtYjBkZjc3ZDg4YWExIiwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OmRlZmF1bHQ6Y2x1c3Rlci1hZG1pbi1kYXNoYm9hcmQtc2EifQ.SLGUU-nW3u_Jcz3yfAeaBs5dXgluqCtXwEL7fnkVLCG87y4NQxLKPariT37pd6opDDp1yLd2TimjAYTv49qRd_Z-ieCq97Ot_LYuNYwOQUTuGIuY5bPKiZq1hx63eZK7kmYl1M6TJctl4UW60whV6vuXJoDTqiyThut6TPji34_pUybUOArDV1GVA4VZnHj7XxQnyFpvNJmYwlck9Ufudvlxg6oeDqDj9JWGmT-dPDZcxj9KyZ3CNSRJK40O5fhqZKCDeqrE6-3WK1jI1I8RW3r_Wq_iD139Kt9E55z17v4IOySKnNXzcaZxXu-70cR7aIzNyPKS6p4AwISWYUqTXQ
+	K8S dashboard url: https://92.205.23.70:30325
+	
+##-------------------------------- Set up the single node Kubernetes cluster - end ----------------------------------------------------------------------
+
+##-------------------------------- create config and namespaces - start ---------------------------------------------------------------------------------
+	kubectl config set-context qa-context --namespace=qa --user=kubernetes-admin --cluster=kubernetes
+	kubectl config set-context prod-context --namespace=production --user=kubernetes-admin --cluster=kubernetes 
+##-------------------------------- create config and namespaces - end -----------------------------------------------------------------------------------
+
+##-------------------------------- install helm - start -------------------------------------------------------------------------------------------------
+	curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+	chmod 700 get_helm.sh
+	./get_helm.sh
+	helm version
+	helm repo add bitnami https://charts.bitnami.com/bitnami
+	rm get_helm.sh
+##-------------------------------- install helm - end ---------------------------------------------------------------------------------------------------
+
+##-------------------------------- Powershell commands to create and build docker container - start  ----------------------------------------------------
+
+	D:
+
+	cd D:\Source\ecl-wsp\raptor\microservices\cloud-gateway
+
+	cd ..\cloud-config-server\
+
+	del .\target\*.jar
+
+	mvn package -DskipTests
+
+	docker build -t amarjeet2techfirefly/cloud-config-server:0.0.1 .
+
+	docker push  amarjeet2techfirefly/cloud-config-server:0.0.1
+
+	cd ..\cloud-gateway\
+
+	del .\target\*.jar
+
+	mvn package -DskipTests
+
+	docker build -t amarjeet2techfirefly/cloud-gateway:0.0.1 .
+
+	docker push  amarjeet2techfirefly/cloud-gateway:0.0.1
+
+	cd ..\service-registry\
+
+	del .\target\*.jar
+
+	mvn package -DskipTests
+
+	docker build -t amarjeet2techfirefly/service-registry:0.0.1 .
+
+	docker push  amarjeet2techfirefly/service-registry:0.0.1
+
+	cd ..\job-service\
+
+	del .\target\*.jar
+
+	mvn package -DskipTests
+
+	docker build -t amarjeet2techfirefly/job-service:0.0.1 .
+
+	docker push  amarjeet2techfirefly/job-service:0.0.1
+
+	cd ..\user-service\
+
+	del .\target\*.jar
+
+	mvn package -DskipTests
+
+	docker build -t amarjeet2techfirefly/user-service:0.0.1 .
+
+	docker push  amarjeet2techfirefly/user-service:0.0.1
+
+##-------------------------------- Powershell commands to create and build docker container - end  ------------------------------------------------------
+
+  
+# get the public ip 
+kubectl get svc|grep NodePort|awk '{print $5}'|cut -f 2 -d :|cut -f 1 -d /
+
+#---------FROM documentation --------------------------
+# use multiple kubeconfig files at the same time and view merged config
+KUBECONFIG=~/.kube/config:~/.kube/kubconfig2 
+
+kubectl config view
+
+# get the password for the e2e user
+kubectl config view -o jsonpath='{.users[?(@.name == "e2e")].user.password}'
+
+kubectl config view -o jsonpath='{.users[].name}'    # display the first user
+kubectl config view -o jsonpath='{.users[*].name}'   # get a list of users
+kubectl config get-contexts                          # display list of contexts 
+kubectl config current-context                       # display the current-context
+kubectl config use-context my-cluster-name           # set the default context to my-cluster-name
+#---------FROM documentation --------------------------
+
+kubectl config get-contexts
+
+
+#Installing postgre
+
+helm repo add stable https://charts.kubesphere.io/main
+helm install stable/nfs-client-provisioner --set nfs.server=92.205.23.70 --set nfs.path=/home/tffraptor/nfs/kubedata --generate-name
+#If above doesnot work, refer the steps from link: https://github.com/nsprash/kubernetes/tree/master/nfs-provisioner 
+ 
+helm delete postgre-db-release
+helm install postgre-db-release --set postgresqlPassword=RaptorDb@123,postgresqlDatabase=raptor,persistence.storageClass=nfs-client bitnami/postgresql
+
+#----------------- OUTPUT-SAMPLE START -----------------------
+NAME: postgre-db-release
+LAST DEPLOYED: Mon Sep 20 12:44:50 2021
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+** Please be patient while the chart is being deployed **
+PostgreSQL can be accessed through Pgpool via port 5432 on the following DNS name from within your cluster:
+
+    postgre-db-release-postgresql-ha-pgpool.default.svc.cluster.local
+
+Pgpool acts as a load balancer for PostgreSQL and forward read/write connections to the primary node while read-only connections are forwarded to standby nodes.
+
+To get the password for "raptor" run:
+
+    export POSTGRES_PASSWORD=$(kubectl get secret --namespace default postgre-db-release-postgresql-ha-postgresql -o jsonpath="{.data.postgresql-password}" | base64 --decode)
+
+To get the password for "RepRaptor" run:
+
+    export REPMGR_PASSWORD=$(kubectl get secret --namespace default postgre-db-release-postgresql-ha-postgresql -o jsonpath="{.data.repmgr-password}" | base64 --decode)
+
+To connect to your database run the following command:
+
+    kubectl run postgre-db-release-postgresql-ha-client --rm --tty -i --restart='Never' --namespace default --image docker.io/bitnami/postgresql-repmgr:11.13.0-debian-10-r33 --env="PGPASSWORD=$POSTGRES_PASSWORD"  \
+        --command -- psql -h postgre-db-release-postgresql-ha-pgpool -p 5432 -U raptor -d postgres
+
+To connect to your database from outside the cluster execute the following commands:
+
+    kubectl port-forward --namespace default svc/postgre-db-release-postgresql-ha-pgpool 5432:5432 &
+    psql -h 127.0.0.1 -p 5432 -U raptor -d postgres
+
+#----------------- OUTPUT-SAMPLE END ----------------------
+
+# Install postgre 
+sudo yum install postgresql.x86_64
+
+# Get the IP and update the datasource host name in job and user service 
+kubectl describe service/postgre-db-release-postgresql
+
+# Create QA environment 
+cd amarjeet/k8s/qa/
+kubectl config current-context
+kubectl config use-context qa-context
+kubectl apply -f .
+
+# create Prod environment 
+cd ../prod/
+kubectl config use-context prod-context
+kubectl apply -f .
+
+
+#Note down the ports from below command and access the service discovery and apis 
+
+
+##---- AUTO Deployment Start ---------------------------
+# Reference Link: https://blog.lwolf.org/post/how-to-create-ci-cd-pipeline-with-autodeploy-k8s-gitlab-helm/
+# Reference Link: https://www.alibabacloud.com/help/doc-detail/106968.htm
+
+##---- AUTO Deployment End ---------------------------
+
+# Create gitlab group and create projects inside the group 
+
+
+#-------------------------------- Add existing local repo to gitlab - start ----------------------------------------------------------------------------
+
+D:
+cd D:\Source\ecl-wsp\raptor\microservices\cloud-gateway
+git init
+git remote [add/set-url] origin git@gitlab.com:raptor-microservices/service-registry.git
+git add .
+git commit -m "Initial commit" 
+git push -u origin master
+
+cd ..\job-service\
+git init
+git remote add origin git@gitlab.com:raptor-microservices/job-service.git
+git add .
+git commit -m "Initial commit"
+git push -u origin master
+
+cd ..\user-service\
+git init
+git remote add origin git@gitlab.com:raptor-microservices/user-service.git
+git add .
+git reset .\old.docker-compose.yml
+git commit -m "Initial commit"
+git status
+git push -u origin master
+
+cd ..\service-registry\
+git init
+git remote add origin git@gitlab.com:raptor-microservices/service-registry.git
+git add .
+git commit -m "Initial commit"
+git push -u origin master
+
+For push related issues: 
+https://medium.com/@pinglinh/how-to-have-2-github-accounts-on-one-machine-windows-69b5b4c5b14e
+
+ssh-keygen
+git config -e
+sshCommand=ssh -i ~/.ssh/id_rsa_test
+
+#-------------------------------- Add existing local repo to gitlab - end ----------------------------------------------------------------------------
+
+-------------------------------DIND - GITLAB RUNNER------------------------------------------------------------
+https://docs.gitlab.com/ee/ci/variables/
+
+Runner Info 
+URL: https://gitlab.com/
+Token: XhsZsUQAKrJA1w8N4dBu
+
+https://docs.gitlab.com/runner/install/docker.html#option-2-use-docker-volumes-to-start-the-runner-container
+https://docs.gitlab.com/runner/register/index.html#docker
+https://docs.gitlab.com/runner/install/kubernetes.html
+
+Group Runner:
+Url: https://gitlab.com/
+Token: 5zgerULzXchxqbSzLKv7
+
+
+https://gitlab.com/gitlab-org/charts/gitlab-runner/blob/main/values.yaml
+
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner unregister --all-runners
+
+docker stop gitlab-runner && docker rm gitlab-runner
+
+docker rm $(docker container ls -a | grep 'gitlab/gitlab-runner' | awk '{print $1}')
+
+
+sudo docker run -d --name gitlab-runner --restart always -v /var/run/docker.sock:/var/run/docker.sock -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache  gitlab/gitlab-runner:latest
+
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache  gitlab/gitlab-runner:latest register --url https://gitlab.com/ --registration-token FneqXP32nCSpdTLLh1LP --description "user-service-runner" --docker-privileged --executor "docker" --tag-list "qa,prod,dev" --run-untagged="true" --docker-image ruby:2.6
+
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner verify
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner restart
+
+In short, the "gitlab-runner" part of the command is replaced with "docker run [docker options] gitlab/gitlab-runner", while the rest of the command stays as it is described in the register documentation. The only difference is that the gitlab-runner command is executed inside of a Docker container
+
+---------------------------------------------
+[tffraptor@ip-92-205-23-70 ~]$ docker run --rm -it -v gitlab-runner-config:/etc/gitlab-runner gitlab/gitlab-runner:latest register
+Runtime platform                                    arch=amd64 os=linux pid=8 revision=b37d3da9 version=14.3.0
+Running in system-mode.
+
+Enter the GitLab instance URL (for example, https://gitlab.com/):
+https://gitlab.com/
+Enter the registration token:
+5zgerULzXchxqbSzLKv7
+Enter a description for the runner:
+[21b1960b040b]: Raptor microservices group runner
+Enter tags for the runner (comma-separated):
+qa, dev, prod
+Registering runner... succeeded                     runner=5zgerULz
+Enter an executor: virtualbox, docker-ssh+machine, custom, parallels, shell, ssh, docker, docker-ssh, docker+machine, kubernetes:
+docker
+Enter the default Docker image (for example, ruby:2.6):
+ruby:2.6
+Runner registered successfully. Feel free to start it, but if it's running already the config should be automatically reloaded!
+---------------------------------------------
+
+-------------------------------------------------------------
+# Access gitlab private repository
+# Reference: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+
+https://docs.gitlab.com/ee/user/project/deploy_tokens/
+
+cloud-gateway:
+	username: kube-cloud-gateway-puller
+	token: L7PfPKozz9zGA1immz7s
+user-service:
+	username: kube-user-svc-puller
+	token: bY6-qDusR4WxX_rA61ym
+job-service:
+	username: kube-job-svc-puller
+	token: 129UoPryrJySLjzonzjJ
+service-registry:
+	username: kube-service-registry-puller
+	token: BsWdj1m7KTE6Ccs4Ts1b
+	
+Token username: kube-user-svc-puller
+Token: UHbAMgZxn2yfRbW7_RRt
+
+docker login -u kube-user-svc-puller -p UHbAMgZxn2yfRbW7_RRt registry.gitlab.com
+
+cat /home/tffraptor/.docker/config.json
+
+{
+        "auths": {
+                "registry.gitlab.com": {
+                        "auth": "a3ViZS11c2VyLXN2Yy1wdWxsZXI6VUhiQU1nWnhuMnlmUmJXN19SUnQ="
+                }
+        }
+		
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myregistrykey
+  namespace: awesomeapps
+data:
+  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxMWMyVnlMWE4yWXkxd2RXeHNaWEk2VlVoaVFVMW5Xbmh1TW5sbVVtSlhOMTlTVW5RPSIKCQl9Cgl9Cn0=
+type: kubernetes.io/dockerconfigjson
+
+
+
+suhebmohd1
+Firefly2019!
+
+
+-----------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------
+#Gitlab runner configurations 
+#Important instruction: Disable gitlab shared and group runner 
+
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner unregister --all-runners
+
+docker stop gitlab-runner && docker rm gitlab-runner
+
+docker rm $(docker container ls -a | grep 'gitlab/gitlab-runner' | awk '{print $1}')
+
+docker run -d --name gitlab-runner --restart always -v /var/run/docker.sock:/var/run/docker.sock -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache  gitlab/gitlab-runner:latest
+
+
+cloud-gateway:
+	url: https://gitlab.com/
+	token: nKXsT3CRuKvHSenAz-UC
+		
+	sudo docker run -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache  gitlab/gitlab-runner:latest register --url https://gitlab.com/ --registration-token nKXsT3CRuKvHSenAz-UC --description "cloud-gateway-runner" --docker-privileged --executor "docker" --run-untagged="true" --docker-image ruby:2.6
+
+user-service:
+	url: https://gitlab.com/
+	token: chLKt2Wrt3uJYmRmbaWJ
+	
+		
+
+job-service:
+	url: https://gitlab.com/
+	token: d5XPTZVX4y7GACTKexq1
+
+	sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache  gitlab/gitlab-runner:latest register --url https://gitlab.com/ --registration-token d5XPTZVX4y7GACTKexq1 --description "job-service-runner" --docker-privileged --executor "docker" --tag-list "qa,prod,dev" --docker-image ruby:2.6
+
+service-registry:
+	url: https://gitlab.com/
+	token: 9Xa945dR5EEoXvyssDso
+		
+	sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache  gitlab/gitlab-runner:latest register --url https://gitlab.com/ --registration-token 9Xa945dR5EEoXvyssDso --description "service-registry-runner" --docker-privileged --executor "docker" --tag-list "qa,prod,dev" --run-untagged="true" --docker-image ruby:2.6
+
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner verify
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner restart
+sudo docker run -it -v /home/tffraptor/amarjeet/gitlab-runner/config:/etc/gitlab-runner -v /home/tffraptor/amarjeet/gitlab-runner/cache:/opt/cache gitlab/gitlab-runner -debug run
+
+-------------------------------DIND - GITLAB RUNNER - END------------------------------------------------------------

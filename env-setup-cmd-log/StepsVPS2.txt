@@ -1,0 +1,402 @@
+### Execute the below steps to set-up server 2 ###
+
+
+##-------------------------------- Install docker - start -----------------------------------------------------------------------------------------------
+	# Reference link: https://docs.docker.com/engine/install/centos/
+
+	sudo yum install -y yum-utils
+	sudo yum-config-manager --add-repo  https://download.docker.com/linux/centos/docker-ce.repo
+	sudo yum install docker-ce docker-ce-cli containerd.io 
+	sudo systemctl start docker
+	sudo systemctl enable docker
+
+	# Add users to run from non-root user 
+	sudo groupadd docker
+	sudo usermod -aG docker $USER
+	newgrp docker
+	docker run hello-world
+	reboot
+
+##-------------------------------- Install docker - end -------------------------------------------------------------------------------------------------
+
+##-------------------------------- Install docker compose - start ---------------------------------------------------------------------------------------
+Reference link for centOs7: https://docs.docker.com/compose/install/ 
+sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+docker-compose --version
+##-------------------------------- Install docker compose - end -----------------------------------------------------------------------------------------
+
+##-------------------------------- Install and configure database - start -------------------------------------------------------------------------------
+	yum install postgresql
+
+	#Setting up master database 
+
+	#docker-compose.yml 
+	--------------------------------------------------------------------
+	version: '3.8'
+	services:
+	  db:
+		restart: always
+		image: postgres:13-alpine
+		container_name: postgres-db-master
+		volumes:
+		  - ./data:/var/lib/postgresql/data/:rw
+		ports:
+		  - "5432:5432"
+		environment:
+		  POSTGRES_USER: raptor
+		  POSTGRES_PASSWORD: Raptor@!23
+		  PGDATA: /var/lib/postgresql/data/
+		healthcheck:
+		  test: ["CMD-SHELL", "pg_isready -U raptor"]
+		  interval: 10s
+		  timeout: 5s
+		  retries: 5
+	--------------------------------------------------------------------
+
+	mkdir -p /home/tffdbserver/database/master/conf
+	mkdir -p /home/tffdbserver/database/slave
+
+	cd /home/tffdbserver/database/master/conf
+
+	docker run -i --rm postgres:13-alpine cat /usr/local/share/postgresql/postgresql.conf.sample > my-postgres.conf
+
+	#Append melow lines to my-postgres.conf file 
+
+	# ------------------------- Custom settings start -------------------------
+	# DB Version: 13
+	# OS Type: linux
+	# DB Type: web
+	# Total Memory (RAM): 4 GB
+	# CPUs num: 2
+	# Connections num: 200
+	# Data Storage: ssd
+
+	max_connections = 200
+	shared_buffers = 1GB
+	effective_cache_size = 3GB
+	maintenance_work_mem = 256MB
+	checkpoint_completion_target = 0.9
+	wal_buffers = 16MB
+	default_statistics_target = 100
+	random_page_cost = 1.1
+	effective_io_concurrency = 200
+	work_mem = 5242kB
+	min_wal_size = 1GB
+	max_wal_size = 4GB
+	max_worker_processes = 2
+	max_parallel_workers_per_gather = 1
+	max_parallel_workers = 2
+	max_parallel_maintenance_workers = 1
+	# ------------------------- Custom settings end` -------------------------
+	# --------------- Replication settings start -----------------------------
+	wal_level = replica
+	hot_standby = on
+	max_wal_senders = 10
+	max_replication_slots = 10
+	hot_standby_feedback = on
+	# --------------- Replication settings end -------------------------------
+
+	vi master-db_hba.conf
+
+	# TYPE  DATABASE        USER            ADDRESS                 METHOD
+	# "local" is for Unix domain socket connections only
+	local   all             all                                     trust
+	# IPv4 local connections:
+	host    all             all             127.0.0.1/32            trust
+	# IPv6 local connections:
+	host    all             all             ::1/128                 trust
+	# Allow replication connections from localhost, by a user with the
+	# replication privilege.
+	local   replication     all                                     trust
+	host    replication     all             127.0.0.1/32            trust
+	host    replication     all             ::1/128                 trust
+	host    replication     replicator      0.0.0.0/0               trust
+	host all all all md5
+
+	Update master docker-compoase-yml similar to below 
+
+	version: '3'
+	services:
+	  database:
+		image: postgres:13
+		container_name: my_postgres_database
+		restart: always
+		volumes:
+			- ./data:/var/lib/postgresql/data
+			- ./my-postgres.conf:/etc/postgresql/postgresql.conf
+			- ./my-pg_hba.conf:/etc/postgresql/pg_hba.conf
+		ports:
+		  - "127.0.0.1:5432:5432"
+		environment:
+		  - 'POSTGRES_PASSWORD=my_password'
+		  - 'POSTGRES_DB=my_default_database'
+
+
+	docker exec -it postgres-db-master bash
+	psql -U raptor
+	CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'repl@!23';
+	SELECT * FROM pg_create_physical_replication_slot('replication_slot_slave1');
+	SELECT * FROM pg_replication_slots;
+	\q
+	pg_basebackup -D /tmp/postgresslave -S replication_slot_slave1 -X stream -P -U replicator -Fp -R;
+	exit
+
+	cd /home/tffdbserver/database/slave
+	docker cp postgres-db-master:/tmp/postgresslave .
+
+
+	---------------------
+
+	psql -U raptor -h localhost -p 5432
+	CREATE USER replication REPLICATION LOGIN CONNECTION LIMIT 1 ENCRYPTED PASSWORD 'repl@!23';
+	ALTER ROLE replication CONNECTION LIMIT -1;
+	\q
+
+	SELECT redo_lsn, slot_name,restart_lsn, round((redo_lsn-restart_lsn) / 1024 / 1024 / 1024, 2) AS GB_behind FROM pg_control_checkpoint(), pg_replication_slots;
+
+	create table test(id int, nm varchar(20));
+
+	insert into test values (1,'Amar');
+	insert into test values (2,'jeet');
+
+	select usename,application_name,client_addr,backend_start,state,sync_state from pg_stat_replication ;
+	select client_addr, state, sent_lsn, write_lsn,flush_lsn, replay_lsn from pg_stat_replication;
+
+	select * from pg_stat_wal_receiver ;
+	-------------------------------------------------------------------------------------------------------------------------------------
+	Datasource Host: 92.205.18.180
+
+	# Recreating master database as slave set-up not successfull 
+
+	create database raptor_prod;
+	create user webappprod with encrypted password 'WebApp#@!123';
+	grant all privileges on database raptor_prod to webappprod;
+	
+	prod:
+		datasource_db_name: cmFwdG9yX3Byb2Q=
+		datasource_username: d2ViYXBwcHJvZA==
+		datasource_pwd: V2ViQXBwI0AhMTIz
+
+
+	create database raptor_qa;
+	create user webappqa with encrypted password 'WebApp#@!123';
+	grant all privileges on database raptor_qa to webappqa;
+	
+	QA:
+		datasource_db_name: cmFwdG9yX3Fh
+		datasource_username: d2ViYXBwcWE=
+		datasource_pwd: V2ViQXBwI0AhMTIz
+
+##-------------------------------- Install and configure database - end ---------------------------------------------------------------------------------
+
+
+##-------------------------------- Install k8s and connect from other machine - Start -------------------------------------------------------------------
+	# Reference link: https://medium.com/@raj10x/configure-local-kubectl-to-access-remote-kubernetes-cluster-ee78feff2d6d 
+
+	cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+	[kubernetes]
+	name=Kubernetes
+	baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+	enabled=1
+	gpgcheck=1
+	repo_gpgcheck=1
+	gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+	EOF
+
+	yum install -y kubectl
+
+	cd amarjeet/
+	scp -r tffraptor@92.205.23.70:/home/tffraptor/.kube .
+	cp -r .kube ..
+	kubectl get nodes
+##-------------------------------- Install k8s and connect from other machine - end ---------------------------------------------------------------------
+
+##-------------------------------- Install helm - start -------------------------------------------------------------------------------------------------
+	cd amarjeet/
+	curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+	chmod 700 get_helm.sh
+		
+	helm version
+	helm repo add bitnami https://charts.bitnami.com/bitnami
+	rm get_helm.sh
+##-------------------------------- Install helm - end ---------------------------------------------------------------------------------------------------
+
+##-------------------------------- Install gitlab runner - start ----------------------------------------------------------------------------------------
+	cd amarjeet/
+	sudo curl -L --output /usr/local/bin/gitlab-runner https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64
+	sudo chmod +x /usr/local/bin/gitlab-runner
+	sudo mv /usr/local/bin/gitlab-runner /usr/bin/
+	sudo useradd --comment 'GitLab Runner' --create-home gitlab-runner --shell /bin/bash
+	sudo gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner
+	sudo gitlab-runner start
+	gitlab-runner status
+
+##-------------------------------- Install gitlab runner - end ------------------------------------------------------------------------------------------
+
+##-------------------------------- Configure gitlab runner to connect to kubernetes cluster and run commands - start ------------------------------------
+#Helpful reference: https://github.com/popopame/BASIC_GITLAB_KUBERNETES_PIPELINE/blob/main/gitlab-ci.yml
+#Note down specific runner details from a gitlab project similar to below 
+Gitlab Url: https://gitlab.com/
+Gitlab Token: e7Kx1citpk1GeLzN8Dss
+
+#Register runner 
+sudo gitlab-runner register --url https://gitlab.com/ --registration-token e7Kx1citpk1GeLzN8Dss --description "gitlab-ci-k8s-demo-runner" --docker-privileged --executor "docker" --tag-list "qa,prod,dev,k8s-runner" --run-untagged="true" --docker-image ruby:2.6
+
+#Since we're using kubectl inside docker, we have to configure it in a way similar to accessing kubrenetes from another machine 
+mkdir -p /home/tffdbserver/amarjeet/gitlab-runner/kubeconfig # this folder will hold our kubernetes config file 
+#Copy kubernets config file to above directory. MAKE SURE IT HAS READ PERMISSIONS
+sudo -s 
+cd /etc/gitlab-runner/
+vi config.toml
+
+# update the line for volume similar to below line after registering the runner 
+volumes = ["/home/tffdbserver/amarjeet/gitlab-runner/kubeconfig:/.kube","/cache"]
+
+sudo gitlab-runner verify
+sudo gitlab-runner restart
+
+sudo gitlab-runner verify
+
+sudo gitlab-runner run
+
+
+##-------------------------------- Configure gitlab runner to connect to kubernetes cluster and run commands - end --------------------------------------
+
+##-------------------------------- Install project specific gitlab runner - start -----------------------------------------------------------------------
+	cloud-gateway:  
+		# Note down the spefic runner details from Settings -> CI/CD -> Runners
+		url: https://gitlab.com/
+		token: nKXsT3CRuKvHSenAz-UC
+			
+		sudo gitlab/gitlab-runner register --url https://gitlab.com/ --registration-token nKXsT3CRuKvHSenAz-UC --description "cloud-gateway-runner" --tag-list "qa,prod,dev"  --docker-privileged --executor "docker" --run-untagged="true" --docker-image ruby:2.6
+
+		# update the line for volume similar to below line after registering the runner 
+		sudo vi /etc/gitlab-runner/config.toml
+		volumes = ["/home/tffdbserver/amarjeet/gitlab-runner/kubeconfig:/.kube","/cache"]
+
+		# Create deploy user from gitlab Settings -> Repository -> Deploy Tokens 
+		docker login -u kube-cloud-gateway-puller -p L7PfPKozz9zGA1immz7s registry.gitlab.com
+		
+		cat ~/.docker/config.json|base64
+		
+		# copy the output and update in the docker config json section 
+		
+		# cloud-gateway-docker-config.yml
+		apiVersion: v1
+		kind: Secret
+		metadata:
+		  name: cloud-gateway-docker-config
+		  namespace: awesomeapps
+		data:
+		  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxamJHOTFaQzFuWVhSbGQyRjVMWEIxYkd4bGNqcE1OMUJtVUV0dmVubzVla2RCTVdsdGJYbzNjdz09IgoJCX0KCX0KfQ==
+		type: kubernetes.io/dockerconfigjson
+		
+	service-registry: 
+		# Note down the spefic runner details from Settings -> CI/CD -> Runners
+		url: https://gitlab.com/
+		token: 9Xa945dR5EEoXvyssDso
+		
+		sudo gitlab-runner register --url https://gitlab.com/ --registration-token 9Xa945dR5EEoXvyssDso --description "service-registry-runner" --tag-list "qa,prod,dev" --docker-privileged --executor "docker" --run-untagged="true" --docker-image ruby:2.6
+
+		sudo vi /etc/gitlab-runner/config.toml
+		
+		# update the line for volume similar to below line after registering the runner 
+		volumes = ["/home/tffdbserver/amarjeet/gitlab-runner/kubeconfig:/.kube","/cache"]
+
+		# Create deploy user from gitlab Settings -> Repository -> Deploy Tokens 	
+		username: kube-service-registry-puller
+		token: BsWdj1m7KTE6Ccs4Ts1b
+		
+		# Take back up of ~/.docker (if exists) and delete the same 
+		# Run below command 
+		docker login -u kube-service-registry-puller -p BsWdj1m7KTE6Ccs4Ts1b registry.gitlab.com
+		
+		cat ~/.docker/config.json|base64
+		
+		# copy the output and update in the docker config json section 
+		# Restore the ~/.docker backup if taken earlier 
+		
+		# Update to service-registry-docker-config.yml present in k8s folder of source code 
+		apiVersion: v1
+		kind: Secret
+		metadata:
+		  name: cloud-gateway-docker-config
+		  namespace: awesomeapps
+		data:
+		  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxelpYSjJhV05sTFhKbFoybHpkSEo1TFhCMWJHeGxjanBDYzFka2FqRnROMHRVUlRaRFkzTTBWSE14WWc9PSIKCQl9Cgl9Cn0=
+		type: kubernetes.io/dockerconfigjson
+
+	user-service: 
+		
+		# Note down the spefic runner details from Settings -> CI/CD -> Runners
+		url: https://gitlab.com/
+		token: chLKt2Wrt3uJYmRmbaWJ
+		
+		sudo gitlab-runner register --url https://gitlab.com/ --registration-token chLKt2Wrt3uJYmRmbaWJ --description "user-service-runner" --tag-list "qa,prod,dev" --docker-privileged --executor "docker" --run-untagged="true" --docker-image ruby:2.6
+
+		sudo vi /etc/gitlab-runner/config.toml
+		
+		# update the line for volume similar to below line after registering the runner 
+		volumes = ["/home/tffdbserver/amarjeet/gitlab-runner/kubeconfig:/.kube","/cache"]
+
+		# Create deploy user from gitlab Settings -> Repository -> Deploy Tokens 	
+		username: kube-user-svc-puller
+		token: bY6-qDusR4WxX_rA61ym
+		
+		# Take back up of ~/.docker (if exists) and delete the same 
+		# Run below command 
+		docker login -u kube-user-svc-puller -p bY6-qDusR4WxX_rA61ym registry.gitlab.com
+		
+		cat ~/.docker/config.json|base64
+		
+		# copy the output and update in the docker config json section 
+		# Restore the ~/.docker backup if taken earlier 
+		
+		# Update to user-service-docker-config.yml present in k8s folder of source code 
+		apiVersion: v1
+		kind: Secret
+		metadata:
+		  name: cloud-gateway-docker-config
+		  namespace: awesomeapps
+		data:
+		  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxMWMyVnlMWE4yWXkxd2RXeHNaWEk2WWxrMkxYRkVkWE5TTkZkNFdGOXlRVFl4ZVcwPSIKCQl9Cgl9Cn0=
+		type: kubernetes.io/dockerconfigjson
+
+	user-service: 
+		
+		# Note down the spefic runner details from Settings -> CI/CD -> Runners
+		url: https://gitlab.com/
+		token: d5XPTZVX4y7GACTKexq1
+		
+		sudo gitlab-runner register --url https://gitlab.com/ --registration-token d5XPTZVX4y7GACTKexq1 --description "job-service-runner" --tag-list "qa,prod,dev" --docker-privileged --executor "docker" --run-untagged="true" --docker-image ruby:2.6
+
+		sudo vi /etc/gitlab-runner/config.toml 
+		
+		# update the line for volume similar to below line after registering the runner 
+		volumes = ["/home/tffdbserver/amarjeet/gitlab-runner/kubeconfig:/.kube","/cache"]
+
+		# Create deploy user from gitlab Settings -> Repository -> Deploy Tokens 	
+		username: kube-job-svc-puller
+		token: 129UoPryrJySLjzonzjJ
+		
+		# Take back up of ~/.docker (if exists) and delete the same 
+		# Run below command 
+		docker login -u kube-job-svc-puller -p 129UoPryrJySLjzonzjJ registry.gitlab.com
+		
+		cat ~/.docker/config.json|base64
+		
+		# copy the output and update in the docker config json section 
+		# Restore the ~/.docker backup if taken earlier 
+		
+		# Update to user-service-docker-config.yml present in k8s folder of source code 
+		apiVersion: v1
+		kind: Secret
+		metadata:
+		  name: cloud-gateway-docker-config
+		  namespace: awesomeapps
+		data:
+		  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxcWIySXRjM1pqTFhCMWJHeGxjam94TWpsVmIxQnllWEpLZVZOTWFucHZibnBxU2c9PSIKCQl9Cgl9Cn0=
+		type: kubernetes.io/dockerconfigjson
+		
+##-------------------------------- Install project specific gitlab runner - end -------------------------------------------------------------------------
