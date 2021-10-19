@@ -398,5 +398,56 @@ sudo gitlab-runner run
 		data:
 		  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxcWIySXRjM1pqTFhCMWJHeGxjam94TWpsVmIxQnllWEpLZVZOTWFucHZibnBxU2c9PSIKCQl9Cgl9Cn0=
 		type: kubernetes.io/dockerconfigjson
+
+	raptor-ui: 
 		
+		# Note down the spefic runner details from Settings -> CI/CD -> Runners
+		url: https://gitlab.com/
+		token: zgwJzs4uTtw5H4bT-LkU
+		
+		sudo gitlab-runner register --url https://gitlab.com/ --registration-token zgwJzs4uTtw5H4bT-LkU --description "raptor-ui-runner" --tag-list "qa,prod,dev" --docker-privileged --executor "docker" --docker-image ruby:2.6
+
+		sudo vi /etc/gitlab-runner/config.toml 
+		
+		# update the line for volume similar to below line after registering the runner 
+		volumes = ["/home/tffdbserver/amarjeet/gitlab-runner/kubeconfig:/.kube","/cache"]	
+
+		# Create deploy user from gitlab Settings -> Repository -> Deploy Tokens and check "Read Registry"
+		name: k8s-raptor-ui-puller
+		username: kube-raptor-ui-puller
+		token: fVyyvzpxzQEpkAt8ZeFB
+		
+		# Take back up of ~/.docker (if exists) and delete the same 
+		# Run below command 
+		docker login -u kube-raptor-ui-puller -p fVyyvzpxzQEpkAt8ZeFB registry.gitlab.com
+		
+		cat ~/.docker/config.json|base64
+		
+		# copy the output and update in the docker config json section 
+		# Restore the ~/.docker backup if taken earlier 
+		
+		# Update to user-service-docker-config.yml present in k8s folder of source code 
+		apiVersion: v1
+		kind: Secret	
+		metadata:
+		  name: raptor-ui-docker-config-production
+		  namespace: production
+		data:
+		  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxeVlYQjBiM0l0ZFdrdGNIVnNiR1Z5T21aV2VYbDJlbkI0ZWxGRmNHdEJkRGhhWlVaQyIKCQl9Cgl9Cn0=
+		type: kubernetes.io/dockerconfigjson
 ##-------------------------------- Install project specific gitlab runner - end -------------------------------------------------------------------------
+
+##-------------------------------- Install raptor ui as docker - start -------------------------------------------------------------------------
+#enable CI/CD for the project, refer "https://docs.gitlab.com/ee/ci/enable_or_disable_ci.html#enable-cicd-in-a-project"
+
+# Create and build docker container to images 
+docker login -u kube-raptor-ui-puller -p fVyyvzpxzQEpkAt8ZeFB registry.gitlab.com
+docker build -t registry.gitlab.com/tff_raptor/raptor-ui:latest .
+docker push registry.gitlab.com/tff_raptor/raptor-ui:latest 
+
+# Run docker images 
+docker run --name raptor-ui-prod -d --rm -it -p 3005:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
+docker run --name raptor-ui-qa -d --rm -it -p 3015:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
+
+##-------------------------------- Install raptor ui as docker - end -------------------------------------------------------------------------
+		
