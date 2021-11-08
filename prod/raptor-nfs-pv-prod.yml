@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: raptor-nfs-pv-production
+  namespace: production
+spec:
+  capacity:
+    storage: 10Gi 
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany 
+  persistentVolumeReclaimPolicy: Retain 
+  nfs: 
+    path: "/home/tffdbserver/amarjeet/nfsshare/prod"
+    server: 92.205.18.180

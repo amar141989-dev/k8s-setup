@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: raptor-nfs-pv-qa
+  namespace: qa
+spec:
+  capacity:
+    storage: 10Gi 
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany 
+  persistentVolumeReclaimPolicy: Retain 
+  nfs: 
+    path: "/home/tffdbserver/amarjeet/nfsshare/qa"
+    server: 92.205.18.180
