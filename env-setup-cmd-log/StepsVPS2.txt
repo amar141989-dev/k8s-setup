@@ -437,7 +437,7 @@ sudo gitlab-runner run
 		type: kubernetes.io/dockerconfigjson
 ##-------------------------------- Install project specific gitlab runner - end -------------------------------------------------------------------------
 
-##-------------------------------- Install raptor ui as docker - start -------------------------------------------------------------------------
+##-------------------------------- Install raptor ui as docker - start ----------------------------------------------------------------------------------
 #enable CI/CD for the project, refer "https://docs.gitlab.com/ee/ci/enable_or_disable_ci.html#enable-cicd-in-a-project"
 
 # Create and build docker container to images 
@@ -449,5 +449,48 @@ docker push registry.gitlab.com/tff_raptor/raptor-ui:latest
 docker run --name raptor-ui-prod -d --rm -it -p 3005:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
 docker run --name raptor-ui-qa -d --rm -it -p 3015:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
 
-##-------------------------------- Install raptor ui as docker - end -------------------------------------------------------------------------
+##-------------------------------- Install raptor ui as docker - end ------------------------------------------------------------------------------------
+
+##-------------------------------- Configure NFS server for use by K8S - start --------------------------------------------------------------------------
+
+	NFS Server [92.205.18.180]
+		#Create folder for NFS share 
+			mkdir -p /home/tffdbserver/amarjeet/nfsshare/prod
+			mkdir -p /home/tffdbserver/amarjeet/nfsshare/qa
 		
+		#Install NFS executable 
+			sudo -s
+			yum install nfs-utils nfs-utils-lib
+			yum -y install nfs-utils
+		
+		#Configure NFS service to start on start-up and check status 
+			systemctl enable nfs
+			systemctl start nfs
+			systemctl status nfs
+		
+		#Expose QA by adding below lines to /etc/exports 
+		
+			/home/tffdbserver/amarjeet/nfsshare/prod 92.205.23.70(rw,sync,no_root_squash)
+			/home/tffdbserver/amarjeet/nfsshare/qa 92.205.23.70(rw,sync,no_root_squash)
+			
+			cat /etc/exports
+			exportfs -a
+			systemctl restart nfs
+
+
+	NFS Client [92.205.23.70]
+		#Install NFS executable 
+			sudo -s
+			yum install nfs-utils nfs-utils-lib
+			yum -y install nfs-utils
+		
+		#Check if exposed files are visible 
+			showmount -e 92.205.18.180
+
+		#Mount test 
+			mount -t nfs 92.205.18.180:/home/tffdbserver/amarjeet/nfsshare/qa /mnt/nfsshare
+
+	K8S Reference Link: 
+		https://www.youtube.com/watch?v=to14wmNmRCI&list=WL&index=25
+		
+##-------------------------------- Configure NFS server for use by K8S - End ---------------------------------------------------------------------------
