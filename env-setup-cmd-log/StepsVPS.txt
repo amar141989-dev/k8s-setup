@@ -1,3 +1,5 @@
+### Execute the below steps to set-up server 2 (92.205.23.70) ###
+
 ##-------------------------------- Set up the single node Kubernetes cluster - start --------------------------------------------------------------------
 	# Reference link: https://medium.com/@srpillai/single-node-kubernetes-on-centos-c8c3507e3e65
 

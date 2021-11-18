@@ -1,4 +1,4 @@
-### Execute the below steps to set-up server 2 ###
+### Execute the below steps to set-up server 2 (92.205.18.180) ###
 
 
 ##-------------------------------- Install docker - start -----------------------------------------------------------------------------------------------
@@ -438,16 +438,41 @@ sudo gitlab-runner run
 ##-------------------------------- Install project specific gitlab runner - end -------------------------------------------------------------------------
 
 ##-------------------------------- Install raptor ui as docker - start ----------------------------------------------------------------------------------
-#enable CI/CD for the project, refer "https://docs.gitlab.com/ee/ci/enable_or_disable_ci.html#enable-cicd-in-a-project"
+	#enable CI/CD for the project, refer "https://docs.gitlab.com/ee/ci/enable_or_disable_ci.html#enable-cicd-in-a-project"
 
-# Create and build docker container to images 
-docker login -u kube-raptor-ui-puller -p fVyyvzpxzQEpkAt8ZeFB registry.gitlab.com
-docker build -t registry.gitlab.com/tff_raptor/raptor-ui:latest .
-docker push registry.gitlab.com/tff_raptor/raptor-ui:latest 
+	# ssh into 92.205.18.180
+	# Create below file in /home/tffdbserver/ui-deployment.sh
+	# This file will be used for deploying docker through ssh in gitlab-ci.yml file
+	# Add below contents to file 
+		<------------------------------ Content - Start ----------------------------------------->
+		#!/bin/sh
 
-# Run docker images 
-docker run --name raptor-ui-prod -d --rm -it -p 3005:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
-docker run --name raptor-ui-qa -d --rm -it -p 3015:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
+		container_name=raptor-ui-$1
+		port_number=$2
+		image_name=$3
+		container_id=$(docker ps --filter="name=$container_name" -q | xargs)
+		if [ ! -z "$container_id" ]
+		then
+				echo "Found one running container. Trying to stop it..."
+				docker stop $container_name
+		fi
+
+		echo "Deploying new image..."
+		docker run --name $container_name -d --rm -it -p $port_number:80 $image_name
+		echo "Deployment complete" 
+		<------------------------------ Content - End ------------------------------------------->
+
+	# Manually deploy dockers 
+		# Create and build docker container to images 
+			docker login -u kube-raptor-ui-puller -p fVyyvzpxzQEpkAt8ZeFB registry.gitlab.com
+			docker build -t registry.gitlab.com/tff_raptor/raptor-ui:latest .
+			docker push registry.gitlab.com/tff_raptor/raptor-ui:latest 
+
+		# Run docker images for prod 
+			docker run --name raptor-ui-prod -d --rm -it -p 3005:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
+		
+		# Run docker images for qa 
+			docker run --name raptor-ui-qa -d --rm -it -p 3015:80 registry.gitlab.com/tff_raptor/raptor-ui:latest 
 
 ##-------------------------------- Install raptor ui as docker - end ------------------------------------------------------------------------------------
 
