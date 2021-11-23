@@ -2,10 +2,10 @@
 # as images are fetched from same repository 
 # Ensure namespace value and text appended to name are same and this namespace exists in k8s
 apiVersion: v1
-	kind: Secret
-	metadata:
-	  name: user-service-docker-config-qa
-	  namespace: qa
-	data:
-	  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxMWMyVnlMWE4yWXkxd2RXeHNaWEk2WWxrMkxYRkVkWE5TTkZkNFdGOXlRVFl4ZVcwPSIKCQl9Cgl9Cn0=
-	type: kubernetes.io/dockerconfigjson
+kind: Secret
+metadata:
+	name: user-service-docker-config-qa
+	namespace: qa
+data:
+	.dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxMWMyVnlMWE4yWXkxd2RXeHNaWEk2WWxrMkxYRkVkWE5TTkZkNFdGOXlRVFl4ZVcwPSIKCQl9Cgl9Cn0=
+type: kubernetes.io/dockerconfigjson
