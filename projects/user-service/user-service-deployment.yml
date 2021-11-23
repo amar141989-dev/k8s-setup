@@ -14,27 +14,32 @@ spec:
       labels:
         app: user-service-app
     spec:
+      imagePullSecrets:
+      - name: user-service-docker-config-_NAMESPACE_
       volumes:
       - name: raptor-volume
         persistentVolumeClaim:
           claimName: raptor-nfs-pvc-_NAMESPACE_
-      imagePullSecrets:
-      - name: user-service-docker-config-_NAMESPACE_
       containers:
       - name: user-service-app
         image: _IMAGE_NAME_
-        imagePullPolicy: Always
-        ports:
-          - containerPort: 9093
         volumeMounts:
         - name: raptor-volume
           mountPath: /mnt/raptordata
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 9093
         env:
           - name: SPRING_APPLICATION_JSON
             valueFrom:
               configMapKeyRef:
                 name: raptor-configmap-_NAMESPACE_
                 key: spring_app_json
+          - name: SPRING_PROFILES_ACTIVE
+            valueFrom:
+              configMapKeyRef:
+                name: raptor-configmap-_NAMESPACE_
+                key: spring_profile     
           - name: SPRING_DATASOURCE_HOST
             valueFrom:
               configMapKeyRef:
@@ -55,3 +60,13 @@ spec:
               secretKeyRef:
                 name: raptor-secrets-_NAMESPACE_
                 key: user_service_db_pwd
+          - name: EMAIL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: raptor-secrets-_NAMESPACE_
+                key: email_username
+          - name: EMAIL_PWD
+            valueFrom:
+              secretKeyRef:
+                name: raptor-secrets-_NAMESPACE_
+                key: email_pwd

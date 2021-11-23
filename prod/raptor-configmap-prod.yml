@@ -8,3 +8,4 @@ data:
   spring_app_json: '{"eureka":{"client":{"service-url":{"defaultZone":"http://eureka-0.eureka.production.svc.cluster.local:8761/eureka"}}}}'
   datasource_host:  92.205.18.180
   eureka_service_address: http://eureka-0.eureka:8761/eureka
+  spring_profile: prod #Value should exactly match with the spring profile name 
