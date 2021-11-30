@@ -5,7 +5,7 @@ metadata:
   labels:
     app: job-service-app
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: job-service-app
@@ -16,9 +16,16 @@ spec:
     spec:
       imagePullSecrets:
         - name: job-service-docker-config-_NAMESPACE_
+      volumes:
+      - name: raptor-volume
+        persistentVolumeClaim:
+          claimName: raptor-nfs-pvc-_NAMESPACE_
       containers:
         - name: job-service-app
           image: _IMAGE_NAME_
+          volumeMounts:
+          - name: raptor-volume
+            mountPath: /mnt/raptordata
           imagePullPolicy: Always
           ports:
             - containerPort: 9092
@@ -28,6 +35,11 @@ spec:
                 configMapKeyRef:
                   name: raptor-configmap-_NAMESPACE_
                   key: spring_app_json
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: raptor-configmap-_NAMESPACE_
+                  key: spring_profile     
             - name: SPRING_DATASOURCE_HOST
               valueFrom:
                 configMapKeyRef:

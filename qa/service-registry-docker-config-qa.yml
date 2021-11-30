@@ -8,4 +8,4 @@ metadata:
   namespace: qa
 data:
   .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5naXRsYWIuY29tIjogewoJCQkiYXV0aCI6ICJhM1ZpWlMxelpYSjJhV05sTFhKbFoybHpkSEo1TFhCMWJHeGxjanBDYzFka2FqRnROMHRVUlRaRFkzTTBWSE14WWc9PSIKCQl9Cgl9Cn0=
-type: kubernetes.io/dockerconfigjson
+type: kubernetes.io/dockerconfigjson 
