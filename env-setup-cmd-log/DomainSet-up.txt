@@ -1,0 +1,353 @@
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------- SERVER 1 : 92.205.23.70 : Start ---------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+# Install firewall
+	sudo yum install firewalld
+	sudo systemctl start firewalld
+	sudo systemctl enable firewalld
+	
+# Enable port for access for different use cases 	
+	sudo firewall-cmd --permanent --add-service=ssh
+	sudo firewall-cmd --permanent --add-service=http
+	sudo firewall-cmd --permanent --add-service=https
+	sudo firewall-cmd --permanent --add-service=smtp
+	sudo firewall-cmd --permanent --zone=public --add-port=2224/tcp
+	
+	sudo firewall-cmd --get-services
+	sudo firewall-cmd --permanent --list-all
+	sudo firewall-cmd --reload
+
+# Enable ports for Kubernetes 
+	firewall-cmd --permanent --add-port=6443/tcp
+	firewall-cmd --permanent --add-port=2379-2380/tcp
+	firewall-cmd --permanent --add-port=10250/tcp
+	firewall-cmd --permanent --add-port=10251/tcp
+	firewall-cmd --permanent --add-port=10252/tcp
+	firewall-cmd --permanent --add-port=10255/tcp
+	firewall-cmd --permanent --add-port=8472/udp
+	firewall-cmd --add-masquerade --permanent
+	
+# only if you want NodePorts exposed on control plane IP as well
+	firewall-cmd --permanent --add-port=30000-32767/tcp
+	systemctl restart firewalld
+
+
+# Install nginx server 
+	sudo yum install epel-release 
+	sudo yum install nginx 
+	sudo systemctl enable nginx 
+	sudo systemctl start nginx 
+	cd /etc/nginx/conf.d 
+	sudo touch default.conf 
+
+# Update default.conf to make reverse proxy work 
+------------------------- Start -----------------------------------------------
+server {
+    listen       80;
+    server_name  techfirefly.co.in;
+
+    location / {
+       proxy_pass  http://92.205.18.180:3005/;
+       proxy_redirect     off;
+       proxy_set_header   Host $host;
+    }
+
+    location /api/ {
+       proxy_pass  http://127.0.0.1:32390/api/;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+}
+server {
+    listen       80;
+    server_name  qa.techfirefly.co.in;
+
+    location / {
+       proxy_pass  http://92.205.18.180:3015/;
+       proxy_redirect     off;
+       proxy_set_header   Host $host;
+    }
+
+    location /api/ {
+       proxy_pass  http://127.0.0.1:30317/api/;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+------------------------- Stop ------------------------------------------------
+
+
+# Configure go daddy DNS record 
+	- Delete record with detail [Type=A, Name=@, Value=Parked] - This blocks website access from domain name 
+	- Add record with detail [Type=A, Name=@, Value=92.205.23.70, TTL=1h]
+
+# SSL Configuration 
+	- Generate the SSL certicate
+	- Download and store the key and csr 
+	- Download the key package for nginx 
+	- Upload the zip containing keys to load balancer server 
+	- Run the below commands for placing the ssl files 			
+		unzip techfirefly.co.in.zip
+		mkdir tff_ssl
+		mv 3b14f94604d41c8.crt 3b14f94604d41c8.pem gd_bundle-g2-g1.crt tff_ssl/
+		cd tff_ssl/
+		cat 3b14f94604d41c8.crt  gd_bundle-g2-g1.crt >> raptorssl.crt
+		mkdir /etc/nginx/ssl
+		mv raptorssl.crt /etc/nginx/ssl/
+		cd /etc/nginx/ssl/
+		vi raptorssl.key and "copy the contents of private key"
+		systemctl restart nginx
+	- Update the default.conf like below for force https 
+---------------------------------- Start ----------------------------------------------------------------------------------------------
+	# Redirect to domain from IP based access
+	server {
+		listen 80;
+		server_name 92.205.23.70;
+		rewrite ^ https://techfirefly.co.in$request_uri? permanent;
+	}
+	server {
+		listen 443 ssl;
+		server_name 92.205.23.70;
+		ssl_certificate     /etc/nginx/ssl/raptorssl.crt;
+		ssl_certificate_key /etc/nginx/ssl/raptorssl.key;
+		rewrite ^ https://techfirefly.co.in$request_uri? permanent;
+	}
+
+	# Redirect to https from http
+	server {
+		listen 80;
+		server_name techfirefly.co.in;
+		rewrite ^ https://$server_name$request_uri? permanent;
+	}
+
+	server {
+		listen       443 ssl;
+		server_name  techfirefly.co.in;
+		ssl_certificate     /etc/nginx/ssl/raptorssl.crt;
+		ssl_certificate_key /etc/nginx/ssl/raptorssl.key;
+
+		location / {
+		   proxy_pass  http://92.205.18.180:4005/;
+		   proxy_redirect     off;
+		   proxy_set_header   Host $host;
+		}
+
+		location /eureka {
+		   sub_filter 'href="/"'  'href="/eureka/"';
+		   sub_filter_once off;
+
+		   proxy_pass  http://127.0.0.1:31561/;
+		   proxy_redirect     off;
+		   proxy_set_header   Host $host;
+		}
+
+
+		location /api/ {
+		   proxy_pass  http://127.0.0.1:30213/api/;
+		   proxy_set_header Host $host;
+		   proxy_set_header X-Real-IP $remote_addr;
+		   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		}
+
+		location /qa/ {
+		   sub_filter 'href="/'  'href="/qa/';
+		   sub_filter 'src="/'  'src="/qa/';
+		   sub_filter_once off;
+		   proxy_pass  http://92.205.18.180:4015/;
+		   proxy_redirect     off;
+		   proxy_set_header   Host $host;
+		}
+
+		location /qa/api/ {
+		   proxy_pass  http://127.0.0.1:30317/api/;
+		   proxy_set_header Host $host;
+		   proxy_set_header X-Real-IP $remote_addr;
+		   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		}
+
+		location /qa/eureka {
+		   sub_filter 'href="/"'  'href="/qa/eureka/"';
+		   sub_filter_once off;
+
+		   proxy_pass  http://127.0.0.1:30698/;
+		   proxy_redirect     off;
+		   proxy_set_header   Host $host;
+		}
+
+	}
+
+
+---------------------------------- End ------------------------------------------------------------------------------------------------
+	
+# Generate PKCS12 format key for use in service 
+	- Save private key text file as "*.key" and UTF encoding as "UTF-8"
+	- Download the ssl keys for tomcat 
+	- Unzip the ssl 
+	- Open Gitbash and navigate to folder on gitbash to run below command 
+	  - winpty openssl pkcs12 -export -in 3b14f94604d41c8.crt -inkey generated-private.key -name techfirefly.co.in -certfile gd_bundle-g2-g1.crt -out raptor.p12
+	    >> Pwd: Raptor$sl@32!
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------- SERVER 1 : 92.205.23.70 : Stop ---------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------- SERVER 2 : 92.205.18.180 : Start -------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+# Install firewall
+	sudo yum install firewalld
+	sudo systemctl start firewalld
+	sudo systemctl enable firewalld
+
+	sudo firewall-cmd --permanent --add-service=ssh 
+	sudo firewall-cmd --permanent --add-service=http 
+	sudo firewall-cmd --permanent --add-service=https 
+	sudo firewall-cmd --permanent --add-service=smtp 
+	sudo firewall-cmd --permanent --zone=public --add-port=2224/tcp 
+	sudo firewall-cmd --permanent --zone=public --add-port=5432/tcp 
+	sudo firewall-cmd --permanent --zone=public --add-port=3005/tcp 
+	sudo firewall-cmd --permanent --zone=public --add-port=3015/tcp 
+	sudo firewall-cmd --permanent --zone=public --add-port=4005/tcp 
+	sudo firewall-cmd --permanent --zone=public --add-port=4015/tcp 
+	sudo firewall-cmd --permanent --zone=public --add-port=9000/tcp 
+	sudo firewall-cmd --get-services 
+	sudo firewall-cmd --permanent --list-all 
+	sudo firewall-cmd --reload 
+
+	# Allow NFS server 
+	firewall-cmd --permanent --add-service=nfs
+	firewall-cmd --permanent --add-service=mountd
+	firewall-cmd --permanent --add-service=rpc-bind
+	firewall-cmd --reload
+	
+# Configure go daddy DNS record 
+	- Delete record with detail [Type=A, Name=@, Value=Parked] - This blocks website access from domain name 
+	- Add record with detail [Type=A, Name=app, Value=92.205.18.180, TTL=1h]
+
+# Install nginx 
+	sudo yum install epel-release 
+	sudo yum install nginx 
+	sudo systemctl enable nginx 
+	sudo systemctl start nginx 
+	cd /etc/nginx/conf.d 
+	sudo touch default.conf 
+
+# Update default.conf to make reverse proxy work  
+---------------------------- Start ---------------------------------------------------------------------------------------------------------------
+	server {
+		listen 80;
+		server_name 92.205.18.180;
+		rewrite ^ https://app.techfirefly.co.in$request_uri? permanent;
+	}
+	server {
+		listen 80;
+		server_name app.techfirefly.co.in;
+		rewrite ^ https://$server_name$request_uri? permanent;
+	}
+	server {
+		listen 443 ssl;
+		server_name  app.techfirefly.co.in;
+
+		ssl_certificate     /etc/nginx/ssl/appraptorssl.crt;
+		ssl_certificate_key /etc/nginx/ssl/appraptorssl.key;
+
+		location / {
+		   proxy_pass  http://127.0.0.1:9000/;
+		   proxy_redirect     off;
+		   proxy_set_header   Host $host;
+		}
+	}
+---------------------------- End -------------------------------------------------------------------------------------------------------------------
+
+----------------------------------- Database SSL Set-up : Start ------------------------------------------------------------------------------------
+# SSL Configuration 
+	- Generate the SSL certicate
+	- Download and store the key and csr 
+	- Download the key package for nginx 
+	- Upload the zip containing keys to load balancer server 
+	- Run the below commands for placing the ssl files 			
+		unzip techfirefly.co.in.zip
+		mkdir tff_ssl
+		mv 3b14f94604d41c8.crt 3b14f94604d41c8.pem gd_bundle-g2-g1.crt tff_ssl/
+		cd tff_ssl/
+		cat 3b14f94604d41c8.crt  gd_bundle-g2-g1.crt >> raptorssl.crt
+		mkdir /etc/nginx/ssl
+		mv raptorssl.crt /etc/nginx/ssl/
+		cd /etc/nginx/ssl/
+		vi raptorssl.key and "copy the contents of private key"
+		systemctl restart nginx
+	- Update the default.conf like below for force https 
+
+
+# Use the cert files used for nginx & change the permission 
+	mkdir -p ~/database/ssl
+	sudo cp -a /etc/nginx/ssl/. ~/database/ssl/
+	sudo -s
+	cd ~/database/ssl
+	chown 70 appraptorssl.crt
+    chown 70 appraptorssl.key
+    chmod 600 appraptorssl.key
+	
+# Update docker-compose like below 
+	------------------------- Start ----------------------------------------------------------------------------------------------------------------------
+	version: '3.8'
+	services:
+	  db:
+		restart: always
+		image: postgres:13-alpine
+		container_name: postgres-db-master
+		command: -c ssl=on -c ssl_cert_file=/var/lib/postgresql/appraptorssl.crt -c ssl_key_file=/var/lib/postgresql/appraptorssl.key
+		volumes:
+		  - ./data:/var/lib/postgresql/data/:rw
+		  - ../conf/raptor-postgres.conf:/etc/postgresql/postgresql.conf
+		  - ../conf/raptor-pg_hba.conf:/etc/postgresql/pg_hba.conf
+		  - ../ssl/appraptorssl.crt:/var/lib/postgresql/appraptorssl.crt
+		  - ../ssl/appraptorssl.key:/var/lib/postgresql/appraptorssl.key
+		ports:
+		  - "5432:5432"
+		environment:
+		  POSTGRES_USER: raptor
+		  POSTGRES_PASSWORD: Raptor@!23
+		  PGDATA: /var/lib/postgresql/data/
+		healthcheck:
+		  test: ["CMD-SHELL", "pg_isready -U raptor"]
+		  interval: 10s
+		  timeout: 5s
+		  retries: 5
+	------------------------- End ------------------------------------------------------------------------------------------------------------------------
+
+
+# Update the pg_hba.conf under data folder to reject non-ssl connections 
+	------------------------- Start ----------------------------------------------------------------------------------------------------------------------
+	# TYPE          DATABASE        USER            ADDRESS                 METHOD
+
+	# "local" is for Unix domain socket connections only
+	local           all             all                                     trust
+	# IPv4 local connections:
+	host            all             all             127.0.0.1/32            trust
+	# IPv6 local connections:
+	host            all             all             ::1/128                 trust
+	# Allow replication connections from localhost, by a user with the
+	# replication privilege.
+	local           replication     all                                     trust
+	host            replication     all             127.0.0.1/32            trust
+	host            replication     all             ::1/128                 trust
+
+
+	hostnossl       all             all             0.0.0.0/0               reject
+	hostssl         all             all             0.0.0.0/0               md5
+	------------------------- End ------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------- Database SSL Set-up : Stop -------------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------- SERVER 2 : 92.205.18.180 : Stop --------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
